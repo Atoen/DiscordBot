@@ -4,20 +4,19 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Discord;
+using Discord.Addons.Interactive;
 using Discord.Commands;
 using Discord.WebSocket;
 using DiscordBot.Services;
 using Microsoft.Extensions.Configuration;
+using SharpLink;
 
 namespace DiscordBot;
 
 public class Startup
 {
-    // private readonly DiscordSocketClient _client;
-    // private readonly CommandService _commands;
-    // private readonly IServiceProvider _services;
-    
     public IConfigurationRoot Configuration { get; }
+    private readonly DiscordSocketClient _client;
 
     internal Startup()
     {
@@ -27,22 +26,11 @@ public class Startup
         
         Configuration = builder.Build();
         
-        // _client = new DiscordSocketClient(new DiscordSocketConfig
-        // {
-        //     LogLevel = LogSeverity.Info,
-        //     MessageCacheSize = 100
-        // });
-        //
-        // _commands = new CommandService(new CommandServiceConfig
-        // {
-        //     LogLevel = LogSeverity.Info,
-        //     CaseSensitiveCommands = false
-        // });
-        //
-        // _client.Log += Log;
-        // _commands.Log += Log;
-        //
-        // _services = ConfigureServices();
+        _client = new DiscordSocketClient(new DiscordSocketConfig
+        {
+            LogLevel = LogSeverity.Verbose,
+            MessageCacheSize = 100
+        });
     }
 
     internal async Task MainAsync()
@@ -59,27 +47,11 @@ public class Startup
         await provider.GetRequiredService<StartupService>().StartAsync();
         
         await Task.Delay(Timeout.Infinite);
-
-        // await InitCommands();
-        // await _client.LoginAsync(TokenType.Bot, Configuration["token"]);
-        // await _client.StartAsync();
-        //
-        // await Task.Delay(Timeout.Infinite);
     }
 
     private void ConfigureServices(IServiceCollection services)
     {
-        // var map = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
-        //
-        // map.AddSingleton<CommandHandler>();
-        //
-        // return map.BuildServiceProvider();
-
-        services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
-        {
-            LogLevel = LogSeverity.Info,
-            MessageCacheSize = 100
-        }))
+        services.AddSingleton(_client)
         .AddSingleton(new CommandService(new CommandServiceConfig
         {
             LogLevel = LogSeverity.Info,
@@ -88,33 +60,7 @@ public class Startup
         .AddSingleton<CommandHandler>()
         .AddSingleton<StartupService>()
         .AddSingleton<LoggingService>()
+        .AddSingleton<AudioService>()
         .AddSingleton(Configuration);
-    }
-
-    private static Task Log(LogMessage message)
-    {
-        switch (message.Severity)
-        {
-            case LogSeverity.Critical:
-            case LogSeverity.Error:
-                Console.ForegroundColor = ConsoleColor.Red;
-                break;
-            case LogSeverity.Warning:
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                break;
-            case LogSeverity.Info:
-                Console.ForegroundColor = ConsoleColor.White;
-                break;
-            case LogSeverity.Verbose:
-            case LogSeverity.Debug:
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                break;
-        }
-
-        Console.WriteLine(
-            $"{DateTime.Now,-19} [{message.Severity,8}] {message.Source}: {message.Message} {message.Exception}");
-        Console.ResetColor();
-
-        return Task.CompletedTask;
     }
 }

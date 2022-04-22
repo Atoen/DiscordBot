@@ -9,16 +9,10 @@ namespace DiscordBot.Services;
 
 public class LoggingService
 {
-    private readonly DiscordSocketClient _discord;
-    private readonly CommandService _commands;
-    
     public LoggingService(DiscordSocketClient discord, CommandService commands)
     {
-        _discord = discord;
-        _commands = commands;
-
-        _discord.Log += OnLogAsync;
-        _commands.Log += OnLogAsync;
+        discord.Log += OnLogAsync;
+        commands.Log += OnLogAsync;
     }
     
     private static Task OnLogAsync(LogMessage message)
@@ -44,6 +38,7 @@ public class LoggingService
         Console.WriteLine(
             $"{DateTime.Now,-19} [{message.Severity,8}] {message.Source}: {message.Message} {message.Exception}");
         Console.ResetColor();
+        
         return Task.CompletedTask;
     }
 }

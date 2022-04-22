@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 
 namespace DiscordBot.Modules;
 
+[Name("Helping")]
+[Summary("Helpful commands")]
 public class HelpModule : ModuleBase<SocketCommandContext>
 {
     private readonly CommandService _service;
