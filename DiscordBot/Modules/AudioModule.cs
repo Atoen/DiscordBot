@@ -2,11 +2,8 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Discord;
-using Discord.Addons.Interactive;
 using Discord.Commands;
 using DiscordBot.Services;
-using SharpLink;
-using SharpLink.Enums;
 
 namespace DiscordBot.Modules;
 

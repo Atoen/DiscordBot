@@ -10,13 +10,14 @@ namespace DiscordBot.Modules;
 [Summary("Helpful commands")]
 public class HelpModule : ModuleBase<SocketCommandContext>
 {
+#if true
     private readonly CommandService _service;
-    private readonly IConfigurationRoot _config;
+    // private readonly IConfigurationRoot _config;
     
-    public HelpModule(CommandService service, IConfigurationRoot config)
+    public HelpModule(CommandService service)
     {
         _service = service;
-        _config = config;
+        // _config = config;
     }
     
     [Command("help")]
@@ -36,7 +37,7 @@ public class HelpModule : ModuleBase<SocketCommandContext>
             {
                 var result = await commandInfo.CheckPreconditionsAsync(Context);
                 if (result.IsSuccess)
-                    description += $"{_config["prefix"]}{commandInfo.Aliases[0]}\n";
+                    description += $"!{commandInfo.Aliases[0]}\n";
             }
 
             if (!string.IsNullOrWhiteSpace(description))
@@ -93,4 +94,6 @@ public class HelpModule : ModuleBase<SocketCommandContext>
     {
         await ReplyAsync("Oro deadass");
     }
+
+#endif
 }

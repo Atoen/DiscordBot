@@ -20,10 +20,15 @@ public class StartupService
         _config = config;
         _provider = provider;
     }
-    
+
     public async Task StartAsync()
     {
         var token = _config["token"];
+
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            throw new Exception("No token provided in configuration.");
+        }
 
         await _client.LoginAsync(TokenType.Bot, token);
         await _client.StartAsync();

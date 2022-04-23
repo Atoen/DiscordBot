@@ -4,16 +4,13 @@ using System.IO;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Audio;
-using SharpLink;
-using SharpLink.Enums;
 
 namespace DiscordBot.Services;
 
 public class AudioService
 {
     private readonly ConcurrentDictionary<ulong, IAudioClient> _connectedChannels = new();
-    private readonly LavalinkManager _lavalink;
-    
+
     public async Task JoinAudio(IGuild guild, IVoiceChannel target)
     {
         IAudioClient client;
@@ -40,5 +37,4 @@ public class AudioService
             _connectedChannels.TryRemove(guild.Id, out client);
         }
     }
-    
 }

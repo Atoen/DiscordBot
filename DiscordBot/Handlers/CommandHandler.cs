@@ -1,9 +1,8 @@
-﻿namespace DiscordBot.Services;
-using Discord.Commands;
+﻿using Discord.Commands;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
-using System.Threading.Tasks;
-using System;
+
+namespace DiscordBot.Handlers;
 
 public class CommandHandler
 {
