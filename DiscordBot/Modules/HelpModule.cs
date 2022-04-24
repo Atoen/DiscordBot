@@ -10,14 +10,13 @@ namespace DiscordBot.Modules;
 [Summary("Helpful commands")]
 public class HelpModule : ModuleBase<SocketCommandContext>
 {
-#if true
     private readonly CommandService _service;
-    // private readonly IConfigurationRoot _config;
+    private readonly IConfigurationRoot _config;
     
-    public HelpModule(CommandService service)
+    public HelpModule(CommandService service, IConfigurationRoot config)
     {
         _service = service;
-        // _config = config;
+        _config = config;
     }
     
     [Command("help")]
@@ -37,7 +36,7 @@ public class HelpModule : ModuleBase<SocketCommandContext>
             {
                 var result = await commandInfo.CheckPreconditionsAsync(Context);
                 if (result.IsSuccess)
-                    description += $"!{commandInfo.Aliases[0]}\n";
+                    description += $"{_config["prefix"]}{commandInfo.Aliases[0]}\n";
             }
 
             if (!string.IsNullOrWhiteSpace(description))
@@ -74,14 +73,14 @@ public class HelpModule : ModuleBase<SocketCommandContext>
 
         foreach (var match in result.Commands)
         {
-            var cmd = match.Command;
+            var commandInfo = match.Command;
 
-            builder.AddField(x =>
+            builder.AddField(fieldBuilder =>
             {
-                x.Name = string.Join(", ", cmd.Aliases);
-                x.Value = $"Parameters: {string.Join(", ", cmd.Parameters.Select(p => p.Name))}\n" +
-                          $"Summary: {cmd.Summary}";
-                x.IsInline = false;
+                fieldBuilder.Name = string.Join(", ", commandInfo.Aliases);
+                fieldBuilder.Value = $"Parameters: {string.Join(", ", commandInfo.Parameters.Select(info => info.Name))}\n" +
+                          $"Summary: {commandInfo.Summary}";
+                fieldBuilder.IsInline = false;
             });
         }
 
@@ -94,6 +93,4 @@ public class HelpModule : ModuleBase<SocketCommandContext>
     {
         await ReplyAsync("Oro deadass");
     }
-
-#endif
 }

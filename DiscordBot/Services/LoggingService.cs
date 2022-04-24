@@ -16,6 +16,8 @@ public class LoggingService
     
     private static Task OnLogAsync(LogMessage message)
     {
+        if (message.Source == "Victoria" && message.Severity == LogSeverity.Debug) return Task.CompletedTask;
+        
         switch (message.Severity)
         {
             case LogSeverity.Critical:

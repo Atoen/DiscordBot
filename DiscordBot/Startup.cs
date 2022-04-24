@@ -11,7 +11,7 @@ namespace DiscordBot;
 
 public class Startup
 {
-    public IConfigurationRoot Configuration { get; }
+    private readonly IConfigurationRoot _configuration;
     private readonly DiscordSocketClient _client;
     private LavaNode? _lavaNode;
 
@@ -21,7 +21,7 @@ public class Startup
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("config.json");
         
-        Configuration = builder.Build();
+        _configuration = builder.Build();
 
         _client = new DiscordSocketClient(new DiscordSocketConfig
         {
@@ -34,10 +34,11 @@ public class Startup
 
     private async Task ClientOnReady()
     {
-        Console.WriteLine("connecting lava");
-
-
-        if (_lavaNode is {IsConnected: false}) await _lavaNode.ConnectAsync();
+        if (_lavaNode is {IsConnected: false})
+        {
+            await _lavaNode.ConnectAsync();
+            _lavaNode.OnTrackEnded += AudioService.TrackEnded;
+        }
     }
 
     internal async Task MainAsync()
@@ -60,26 +61,26 @@ public class Startup
 
     private void ConfigureServices(IServiceCollection services)
     {
-        services.AddSingleton(_client)
-        .AddSingleton(new CommandService(new CommandServiceConfig
+        var commandService = new CommandService(new CommandServiceConfig
         {
             LogLevel = LogSeverity.Info,
-            CaseSensitiveCommands = false
-        }))
-        .AddSingleton<CommandHandler>()
-        .AddSingleton<StartupService>()
-        .AddSingleton<LoggingService>()
-        .AddSingleton<AudioService>()
-        .AddLavaNode(_ =>
-        {
-            new LavaConfig
+            CaseSensitiveCommands = false,
+        });
+
+        services.AddSingleton(_client)
+            .AddSingleton(commandService)
+            .AddSingleton<CommandHandler>()
+            .AddSingleton<StartupService>()
+            .AddSingleton<LoggingService>()
+            .AddSingleton<AudioService>()
+            .AddLavaNode(lava =>
             {
-                Hostname = "127.0.0.1",
-                Port = 2333,
-                Authorization = "youshallnotpass",
-                LogSeverity = LogSeverity.Info
-            };
-        } )
-        .AddSingleton(Configuration);
+                lava.Hostname = _configuration["lavaServer:host"];
+                lava.Port = ushort.Parse(_configuration["lavaServer:port"]);
+                lava.Authorization = _configuration["lavaServer:password"];
+                lava.IsSsl = false;
+                lava.SelfDeaf = true;
+            })
+            .AddSingleton(_configuration);
     }
 }
