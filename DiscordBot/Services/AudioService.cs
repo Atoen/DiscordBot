@@ -1,9 +1,10 @@
 ﻿using System.Collections.Concurrent;
 using System.Text;
 using Discord;
-using Discord.Audio;
 using Discord.Commands;
+using Discord.WebSocket;
 using DiscordBot.Handlers;
+using DiscordBot.Structs;
 using Victoria;
 using Victoria.Enums;
 using Victoria.EventArgs;
@@ -14,7 +15,9 @@ namespace DiscordBot.Services;
 public class AudioService
 {
     private readonly LavaNode _lavaNode;
-    
+
+    private static readonly ConcurrentDictionary<SocketGuild, PlayerStateStruct> PlayerStatesDict = new();
+
     public AudioService(LavaNode lavaNode) => _lavaNode = lavaNode;
     
     /// <summary>
@@ -30,6 +33,8 @@ public class AudioService
         var guild = context.Guild;
         var voiceState = context.User as IVoiceState;
         var textChanel = context.Channel as ITextChannel;
+
+        PlayerStatesDict.TryAdd(guild, new PlayerStateStruct());
 
         if (_lavaNode.HasPlayer(guild))
         {
@@ -68,6 +73,8 @@ public class AudioService
     {
         var guild = context.Guild;
         var voiceState = context.User as IVoiceState;
+
+        PlayerStatesDict.TryRemove(guild, out _);
 
         if (!_lavaNode.HasPlayer(guild))
         {
@@ -138,7 +145,7 @@ public class AudioService
 
         if (track == null)
         {
-            return await EmbedHandler.CreateErrorEmbed("Music, Play", "Couldn't retrieve the track");
+            return await EmbedHandler.CreateErrorEmbed("Music, Play", "Couldn't retrieve the track.");
         }
 
         if (player.Track != null && player.PlayerState is PlayerState.Playing or PlayerState.Paused)
@@ -146,27 +153,34 @@ public class AudioService
             player.Queue.Enqueue(track);
 
             return await EmbedHandler.CreateBasicEmbed("Music", 
-                $"{track?.Title} has been added to the queue at #{player.Queue.Count + 1}", Color.DarkGreen);
+                $"[{track.Title}]({track.Url}) has been added to the queue at #{player.Queue.Count + 1}.", Color.DarkGreen);
         }
 
         await player.PlayAsync(track);
+        
+        // Zapisywanie utworu (potrzebne do loopowania)
+        if (PlayerStatesDict.TryGetValue(guild, out var stateStruct))
+        {
+            stateStruct.LastTrack = track;
+        }
+        // PlayerStatesDict.TryUpdate(guild, stateStruct with {LastTrack = track}, stateStruct);
 
         // Jeśli jest z poza youtube
-        if (!track!.Url.Contains("watch?v="))
+        if (!track.Url.Contains("watch?v="))
             return await EmbedHandler.CreateBasicEmbed("Now Playing",
-                $"Now playing: [{track?.Title}]({track?.Url})", Color.DarkGreen);
+                $"Now playing: [{track.Title}]({track.Url}).", Color.DarkGreen);
         
         // Utworzenie link do miniaturki filmiku (w średniej jakości)
-        var videoId = track?.Url.Split("watch?v=")[1].Split("&")[0];
+        var videoId = track.Url.Split("watch?v=")[1].Split("&")[0];
         var thumbnailUrl = $"https://img.youtube.com/vi/{videoId}/mqdefault.jpg";
 
-        var embed = await Task.Run(() => new EmbedBuilder()
+        var embed = await Task.FromResult(new EmbedBuilder()
             .WithTitle("Now Playing")
-            .WithDescription($"Now playing: [{track?.Title}]({track?.Url})")
+            .WithDescription($"Now playing: [{track.Title}]({track.Url}).")
             .WithImageUrl(thumbnailUrl)
             .WithColor(Color.DarkGreen)
             .Build());
-            
+
         return embed;
     }
     
@@ -183,7 +197,7 @@ public class AudioService
         
         if (!_lavaNode.HasPlayer(guild))
         {
-            return await EmbedHandler.CreateBasicEmbed("Music, List", 
+            return await EmbedHandler.CreateBasicEmbed("Music Playlist", 
                 "I'm not connected to a voice channel.\n Queue is empty.", Color.DarkRed);
         }
 
@@ -192,25 +206,25 @@ public class AudioService
 
         if (player.PlayerState is not (PlayerState.Playing or PlayerState.Paused))
         {
-            return await EmbedHandler.CreateBasicEmbed("Music, List", 
-                "Player isn't playing anything right now.", Color.Blue);
+            return await EmbedHandler.CreateBasicEmbed("Music Playlist", 
+                "No music is being played right now.", Color.Blue);
         }
 
         if (player.Queue.Count < 1 && player.Track != null)
         {
-            return await EmbedHandler.CreateBasicEmbed("Music, List", 
-                $"Now playing: {player.Track.Title}", Color.Blue);
+            return await EmbedHandler.CreateBasicEmbed("Music Playlist", 
+                $"Now playing: [{player.Track.Title}]({player.Track.Url}).", Color.Blue);
         }
 
         var trackNum = 2;
         foreach (var track in player.Queue)
         {
-            descriptionBuilder.Append($"{trackNum}: [{track.Title}]({track.Url})\n");
+            descriptionBuilder.Append($"#{trackNum}: [{track.Title}]({track.Url})\n");
             trackNum++;
         }
         
         return await EmbedHandler.CreateBasicEmbed("Music Playlist", 
-            $"Now playing: [[{player.Track?.Title}]({player.Track?.Url}) \n{descriptionBuilder}", Color.Blue);
+            $"Now playing: [{player.Track?.Title}]({player.Track?.Url}) \n{descriptionBuilder}", Color.Blue);
     }
     
     /// <summary>
@@ -244,20 +258,27 @@ public class AudioService
             }
             
             return await EmbedHandler.CreateBasicEmbed("Music, Skip", 
-                $"Skipped {currentTrack.Title}", Color.Blue);
+                $"Skipped [{player.Track.Title}]({player.Track.Url}).", Color.Blue);
         }
 
         await player.SkipAsync();
         
+        // Zapisywanie utworu (potrzebne do loopowania)
+        if (PlayerStatesDict.TryGetValue(guild, out var stateStruct))
+        {
+            stateStruct.Looped = false;
+        }
+        // PlayerStatesDict.TryUpdate(guild, new PlayerStateStruct {LastTrack = player.Track, LoopTimes = 0}, stateStruct);
+        
         return await EmbedHandler.CreateBasicEmbed("Music, Skip", 
-            $"Skipped {currentTrack.Title}", Color.Blue);
+            $"Skipped {currentTrack.Title}.", Color.Blue);
     }
 
     /// <summary>
     /// Zmienia poziom głośności playera
     /// </summary>
     /// <param name="context"> Kontekst komendy z informacjami </param>
-    /// <param name="volume"> nowy poziom głośności w procentach </param>
+    /// <param name="volume"> Nowy poziom głośności w procentach </param>
     /// <returns>
     /// string z potwierdzeniem zmiany
     /// </returns>
@@ -277,56 +298,106 @@ public class AudioService
 
         var player = _lavaNode.GetPlayer(guild);
         await player.UpdateVolumeAsync(volume);
-        return $"Volume set to {volume}.";
+        return $"Volume set to {volume}%.";
     }
-    
+
+    /// <summary>
+    /// Obsługuje event TrackEnded 
+    /// </summary>
+    /// <param name="args"> Argumenty eventu </param>
     public static async Task TrackEnded(TrackEndedEventArgs args)
     {
         if (args.Reason is not (TrackEndReason.Finished or TrackEndReason.LoadFailed))
         {
             return;
         }
+        
+        var guild = args.Player.VoiceChannel.Guild as SocketGuild;
 
-        if (!args.Player.Queue.TryDequeue(out var queueable))
+        PlayerStatesDict.TryGetValue(guild!, out var stateStruct);
+
+        if (stateStruct == null)
         {
+            await args.Player.TextChannel.SendMessageAsync("An error occured while switching tracks");
             return;
         }
+        
+        stateStruct.PerformLoop();
+        var looped = stateStruct.Looped;
 
-        if (queueable is not { } track)
+        LavaTrack track;
+        
+        if (!looped)
         {
-            await args.Player.TextChannel.SendMessageAsync("Next item in queue is not a track.");
-            return;
+            if (!args.Player.Queue.TryDequeue(out var queueable)) return;
+
+            track = queueable;
+            
+            var embed = await EmbedHandler.CreateBasicEmbed("Now Playing", 
+                $"Now playing: [{track.Title}]({track.Url})", Color.DarkGreen);
+            
+            await args.Player.TextChannel.SendMessageAsync(embed: embed);
+        }
+
+        else
+        {
+            track = stateStruct.LastTrack!;
         }
 
         await args.Player.PlayAsync(track);
-        var embed = await EmbedHandler.CreateBasicEmbed("Now Playing", 
-            $"Now playing: [{track?.Title}]({track?.Url})", Color.DarkGreen);
-        
-        await args.Player.TextChannel.SendMessageAsync(embed: embed);
     }
 
+    /// <summary>
+    /// Zapętla obecne odtwarzaną piosenkę
+    /// </summary>
+    /// <param name="context"> Kontekst komendy z informacjami </param>
+    /// <param name="loopTimes"> Ilość powtórzeń piosenki </param>
+    /// <returns> Embed z potwierdzeniem zapętlenia </returns>
+    public async Task<Embed> LoopAsync(SocketCommandContext context, int loopTimes)
+    {
+        var guild = context.Guild;
+        
+        if (!_lavaNode.HasPlayer(guild))
+        {
+            return await EmbedHandler.CreateBasicEmbed("Music, Loop", 
+                "I'm not connected to a voice channel.\n Nothing to loop.", Color.DarkRed);
+        }
+        
+        var player = _lavaNode.GetPlayer(guild);
+        
+        if (player.Track == null)
+        {
+            return await EmbedHandler.CreateBasicEmbed("Music, Loop", 
+                "Nothing is being played right now.", Color.Blue);
+        }
 
+        PlayerStatesDict.TryGetValue(guild, out var stateStruct);
+        
+        if (stateStruct == null)
+        {
+            return await EmbedHandler.CreateErrorEmbed("Music, Skip",
+                "Couldn't retrieve the player state for looping");
+        }
 
+        if (loopTimes != -1)
+        {
+            stateStruct.LoopTimes = loopTimes;
+            
+            return await EmbedHandler.CreateBasicEmbed("Music, Loop",
+                $"Looping [{player.Track?.Title}]({player.Track?.Url})", Color.Blue);
+        }
+        
+        if (stateStruct.LoopTimes == -1)
+        {
+            stateStruct.LoopTimes = 0;
+            
+            return await EmbedHandler.CreateBasicEmbed("Music, Loop", 
+                $"Unlooping [{player.Track?.Title}]({player.Track?.Url})", Color.Blue);
+        }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        stateStruct.LoopTimes = -1;
+        
+        return await EmbedHandler.CreateBasicEmbed("Music, Loop",
+            $"Looping [{player.Track?.Title}]({player.Track?.Url})", Color.Blue);
+    }
 }

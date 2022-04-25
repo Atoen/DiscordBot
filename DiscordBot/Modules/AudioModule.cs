@@ -1,10 +1,5 @@
-﻿using Discord;
-using Discord.Commands;
-using Victoria;
-using Victoria.Enums;
-using DiscordBot.Handlers;
+﻿using Discord.Commands;
 using DiscordBot.Services;
-using Victoria.Responses.Search;
 
 namespace DiscordBot.Modules;
 
@@ -48,19 +43,27 @@ public sealed class AudioModule : ModuleBase<SocketCommandContext>
     }
 
     [Command("skip")]
-    [Summary("Skips the currently playing song")]
+    [Summary("Skips the currently playing song.")]
     public async Task Skip()
     {
         var embed = await _audioService.SkipTrackAsync(Context);
         await ReplyAsync(embed: embed);
     }
 
-    [Command("Volume")]
+    [Command("volume")]
     [Alias("vol")]
-    [Summary("Sets the player volume")]
+    [Summary("Sets the player volume.")]
     public async Task Volume(ushort volume = 100)
     {
         var message = await _audioService.SetVolumeAsync(Context, volume);
         await ReplyAsync(message);
+    }
+
+    [Command("loop")]
+    [Summary("Loops the currently playing song")]
+    public async Task Loop(int loopTimes = -1)
+    {
+        var embed = await _audioService.LoopAsync(Context, loopTimes);
+        await ReplyAsync(embed: embed);
     }
 }
