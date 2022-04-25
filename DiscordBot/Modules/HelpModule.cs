@@ -1,6 +1,4 @@
-﻿using Discord;
-using Discord.Commands;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 
 namespace DiscordBot.Modules;
 
@@ -23,7 +21,7 @@ public class HelpModule : ModuleBase<SocketCommandContext>
     {
         var builder = new EmbedBuilder()
         {
-            Color = new Color(114, 137, 218),
+            Color = Color.Teal,
             Description = "These are the commands you can use"
         };
 
@@ -65,7 +63,7 @@ public class HelpModule : ModuleBase<SocketCommandContext>
 
         var builder = new EmbedBuilder()
         {
-            Color = new Color(114, 137, 218),
+            Color = Color.Teal,
             Description = $"Here are some commands like **{command}**"
         };
 

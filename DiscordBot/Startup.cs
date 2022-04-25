@@ -1,11 +1,6 @@
 ﻿using DiscordBot.Services;
-using DiscordBot.Handlers;
-using Discord;
-using Discord.Commands;
-using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
-using Victoria;
 
 namespace DiscordBot;
 
@@ -73,6 +68,7 @@ public class Startup
             .AddSingleton<StartupService>()
             .AddSingleton<LoggingService>()
             .AddSingleton<AudioService>()
+            .AddSingleton<SoundEffectsService>()
             .AddLavaNode(lava =>
             {
                 lava.Hostname = _configuration["lavaServer:host"];

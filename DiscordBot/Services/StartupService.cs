@@ -1,7 +1,4 @@
 ﻿using System.Reflection;
-using Discord;
-using Discord.Commands;
-using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 
 namespace DiscordBot.Services;
@@ -34,6 +31,6 @@ public class StartupService
         await _client.StartAsync();
         await _commands.AddModulesAsync(Assembly.GetEntryAssembly(), _provider);
         
-        await _client.SetGameAsync("Sex 2", null, ActivityType.Competing);
+        await _client.SetGameAsync("Diuna", null, ActivityType.Streaming);
     }
 }

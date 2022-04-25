@@ -1,9 +1,4 @@
-﻿using Discord;
-using Discord.Commands;
-using Discord.WebSocket;
-using Victoria;
-
-namespace DiscordBot.Services;
+﻿namespace DiscordBot.Services;
 
 public class LoggingService
 {

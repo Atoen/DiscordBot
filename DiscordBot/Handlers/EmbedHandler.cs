@@ -1,6 +1,4 @@
-﻿using Discord;
-
-namespace DiscordBot.Handlers;
+﻿namespace DiscordBot.Handlers;
 
 public static class EmbedHandler
 {

@@ -1,13 +1,17 @@
-﻿using Discord.Commands;
-using DiscordBot.Services;
+﻿using DiscordBot.Services;
 
 namespace DiscordBot.Modules;
 
-public sealed class AudioModule : ModuleBase<SocketCommandContext>
+public sealed class MusicModule : ModuleBase<SocketCommandContext>
 {
     private readonly AudioService _audioService;
+    private readonly SoundEffectsService _sfxService;
 
-    public AudioModule(AudioService audioService) => _audioService = audioService;
+    public MusicModule(AudioService audioService, SoundEffectsService soundEffectsService)
+    { 
+        _audioService = audioService;
+        _sfxService = soundEffectsService;
+    }
 
     [Command("join")]
     [Summary("Joins the voice channel you are in.")]
@@ -65,5 +69,14 @@ public sealed class AudioModule : ModuleBase<SocketCommandContext>
     {
         var embed = await _audioService.LoopAsync(Context, loopTimes);
         await ReplyAsync(embed: embed);
+    }
+
+    [Command("effect")]
+    [Alias("sfx", "soundeffect")]
+    [Summary("Applies sound effect on the player")]
+    public async Task Effect([Remainder] string effect)
+    {
+        var message = await _sfxService.ApplySoundEffectAsync(Context, effect);
+        await ReplyAsync(message);
     }
 }

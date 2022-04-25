@@ -1,21 +1,10 @@
-﻿using System.Collections.Concurrent;
-using System.Text;
-using Discord;
-using Discord.Commands;
-using Discord.WebSocket;
-using DiscordBot.Handlers;
-using DiscordBot.Structs;
-using Victoria;
-using Victoria.Enums;
-using Victoria.EventArgs;
-using Victoria.Responses.Search;
+﻿using Victoria.Filters;
 
 namespace DiscordBot.Services;
 
 public class AudioService
 {
     private readonly LavaNode _lavaNode;
-
     private static readonly ConcurrentDictionary<SocketGuild, PlayerStateStruct> PlayerStatesDict = new();
 
     public AudioService(LavaNode lavaNode) => _lavaNode = lavaNode;
@@ -163,7 +152,6 @@ public class AudioService
         {
             stateStruct.LastTrack = track;
         }
-        // PlayerStatesDict.TryUpdate(guild, stateStruct with {LastTrack = track}, stateStruct);
 
         // Jeśli jest z poza youtube
         if (!track.Url.Contains("watch?v="))
@@ -238,6 +226,14 @@ public class AudioService
     {
         var guild = context.Guild;
         
+        var voiceState = context.User as IVoiceState;
+        
+        if (voiceState?.VoiceChannel == null)
+        {
+            return await EmbedHandler.CreateBasicEmbed("Music, Loop", 
+                "You must be connected to a voice channel.", Color.DarkRed);
+        }
+        
         if (!_lavaNode.HasPlayer(guild))
         {
             return await EmbedHandler.CreateBasicEmbed("Music, Skip", 
@@ -268,8 +264,7 @@ public class AudioService
         {
             stateStruct.Looped = false;
         }
-        // PlayerStatesDict.TryUpdate(guild, new PlayerStateStruct {LastTrack = player.Track, LoopTimes = 0}, stateStruct);
-        
+
         return await EmbedHandler.CreateBasicEmbed("Music, Skip", 
             $"Skipped {currentTrack.Title}.", Color.Blue);
     }
@@ -352,10 +347,19 @@ public class AudioService
     /// </summary>
     /// <param name="context"> Kontekst komendy z informacjami </param>
     /// <param name="loopTimes"> Ilość powtórzeń piosenki </param>
-    /// <returns> Embed z potwierdzeniem zapętlenia </returns>
+    /// <returns>
+    /// Embed z potwierdzeniem zapętlenia
+    /// </returns>
     public async Task<Embed> LoopAsync(SocketCommandContext context, int loopTimes)
     {
         var guild = context.Guild;
+        var voiceState = context.User as IVoiceState;
+        
+        if (voiceState?.VoiceChannel == null)
+        {
+            return await EmbedHandler.CreateBasicEmbed("Music, Loop", 
+                "You must be connected to a voice channel.", Color.DarkRed);
+        }
         
         if (!_lavaNode.HasPlayer(guild))
         {

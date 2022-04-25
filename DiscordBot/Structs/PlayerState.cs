@@ -1,6 +1,4 @@
-﻿using Victoria;
-
-namespace DiscordBot.Structs;
+﻿namespace DiscordBot.Structs;
 
 public class PlayerStateStruct
 {
