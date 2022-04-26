@@ -25,14 +25,20 @@ public class SoundEffectsService
 
         var player = _lavaNode.GetPlayer(guild);
 
+        if (player.Track == null)
+        {
+            return "I'm not playing anything right now.";
+        }
+
         IFilter filter;
+        var returnMessage = "Applied effect.";
             
         switch (effect.ToLower())
         {
             case "rotation":
             case "rotate":
             case "8d":
-                filter = new RotationFilter { Hertz = 2};
+                filter = new RotationFilter {Hertz = 0.2};
                 break;
             
             case "karaoke":
@@ -41,7 +47,18 @@ public class SoundEffectsService
             
             case "reset":
             case "default":
+            case "off":
                 filter = new ChannelMixFilter();
+                returnMessage = "Disabled effects";
+                break;
+            
+            case "oro":
+            case "9d":
+                filter = new DistortionFilter
+                {
+                    Offset = 2, Scale = 4, CosOffset = 5, CosScale = 10, SinOffset = 2, SinScale = 4, TanOffset = 2,
+                    TanScale = 7
+                };
                 break;
             
             case "mono":
@@ -53,7 +70,8 @@ public class SoundEffectsService
                 return "Effect not found";
         }
         
-        await player.ApplyFilterAsync(filter, 2);
-        return $"Applied effect.";
+        await player.ApplyFilterAsync(filter);
+        
+        return returnMessage;
     }
 }

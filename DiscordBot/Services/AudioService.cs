@@ -6,7 +6,7 @@ public class AudioService
     private static readonly ConcurrentDictionary<SocketGuild, PlayerStateStruct> PlayerStatesDict = new();
 
     public AudioService(LavaNode lavaNode) => _lavaNode = lavaNode;
-    
+
     /// <summary>
     /// Dołącza do kanału głosowego użytkownika wywołującego komendę.
     /// </summary>
@@ -20,20 +20,23 @@ public class AudioService
         var guild = context.Guild;
         var voiceState = context.User as IVoiceState;
         var textChanel = context.Channel as ITextChannel;
-
-        PlayerStatesDict.TryAdd(guild, new PlayerStateStruct());
-
+        
         if (_lavaNode.HasPlayer(guild))
         {
             return await EmbedHandler.CreateBasicEmbed("Music, Join",
                 "Already connected to a voice channel.", Color.DarkRed);
         }
-
+        
         if (voiceState?.VoiceChannel == null)
         {
             return await EmbedHandler.CreateBasicEmbed("Music, Join",
                 "You must be connected to a voice channel.", Color.DarkRed);
         }
+
+        var stateStruct = new PlayerStateStruct(voiceState.VoiceChannel);
+        stateStruct.TimedOut += (_, _) => LeaveAfterTimeoutAsync(stateStruct.VoiceChannel);
+        
+        PlayerStatesDict.TryAdd(guild, stateStruct);
 
         try
         {
@@ -70,7 +73,7 @@ public class AudioService
         }
 
         var player = _lavaNode.GetPlayer(guild);
-
+        
         if (player.PlayerState is PlayerState.Playing or PlayerState.Paused)
         {
             await player.StopAsync();
@@ -90,9 +93,23 @@ public class AudioService
             return await EmbedHandler.CreateErrorEmbed("Music, Leave", exception.Message);
         }
     }
+    
+    /// <summary>
+    /// Opuszcza obecny kanał jeśli minęła określona ilość czasu bez interakcji
+    /// </summary>
+    /// <param name="voiceChannel"> Kanał do opuszczenia </param>
+    private async void LeaveAfterTimeoutAsync(IVoiceChannel voiceChannel)
+    {
+        if (voiceChannel.Guild is SocketGuild guild)
+        {
+            PlayerStatesDict.TryRemove(guild, out _);
+        }
+
+        await _lavaNode.LeaveAsync(voiceChannel);
+    }
 
     /// <summary>
-    /// Opuszcza obecny kanał głosowy
+    /// Wyszukuje i odtwarza podany film/piosenkę
     /// </summary>
     /// <param name="context"> Kontekst komendy z informacjami </param>
     /// <param name="query"> Fraza do wyszukania </param>
@@ -118,29 +135,33 @@ public class AudioService
 
         var player = _lavaNode.GetPlayer(guild);
         
-        var search = Uri.IsWellFormedUriString(query, UriKind.Absolute)
-            ? await _lavaNode.SearchAsync(SearchType.Direct, query)
-            : await _lavaNode.SearchYouTubeAsync(query);
-
-        if (search.Status == SearchStatus.NoMatches)
-        {
-            return await EmbedHandler.CreateBasicEmbed("Music, Play",
-                "Couldn't find the requested video/song.", Color.DarkGreen);
-        }
-
-        var track = search.Tracks.FirstOrDefault();
-
+        var track = await SearchSongAsync(query);
         if (track == null)
         {
             return await EmbedHandler.CreateErrorEmbed("Music, Play", "Couldn't retrieve the track.");
         }
 
+        var embedBuilder = new EmbedBuilder();
+        
+        // Utworzenie link do miniaturki filmiku (w średniej jakości)
+        var videoId = track.Url.Split("watch?v=")[1].Split("&")[0];
+        var thumbnailUrl = $"https://img.youtube.com/vi/{videoId}/mqdefault.jpg";
+
+        // Jeśli player coś odtwarza to znaleziony utwór jest dodawany do kolejki
         if (player.Track != null && player.PlayerState is PlayerState.Playing or PlayerState.Paused)
         {
             player.Queue.Enqueue(track);
 
-            return await EmbedHandler.CreateBasicEmbed("Music", 
-                $"[{track.Title}]({track.Url}) has been added to the queue at #{player.Queue.Count + 1}.", Color.DarkGreen);
+            embedBuilder.WithTitle("Music")
+                .WithDescription($"[{track.Title}]({track.Url}) has been added to the queue at #{player.Queue.Count + 1}.")
+                .WithColor(Color.DarkGreen);
+                
+            if (videoId != string.Empty)
+            {
+                embedBuilder.WithImageUrl(thumbnailUrl);
+
+                return embedBuilder.Build();
+            }
         }
 
         await player.PlayAsync(track);
@@ -149,27 +170,44 @@ public class AudioService
         if (PlayerStatesDict.TryGetValue(guild, out var stateStruct))
         {
             stateStruct.LastTrack = track;
+            stateStruct.KeepConnected();
         }
 
         // Jeśli jest z poza youtube
-        if (!track.Url.Contains("watch?v="))
+        if (videoId == string.Empty)
         {
             return await EmbedHandler.CreateBasicEmbed("Now Playing",
                 $"Now playing: [{track.Title}]({track.Url}).", Color.DarkGreen);
         }
-        
-        // Utworzenie link do miniaturki filmiku (w średniej jakości)
-        var videoId = track.Url.Split("watch?v=")[1].Split("&")[0];
-        var thumbnailUrl = $"https://img.youtube.com/vi/{videoId}/mqdefault.jpg";
 
-        var embed = await Task.FromResult(new EmbedBuilder()
-            .WithTitle("Now Playing")
+        embedBuilder.WithTitle("Now Playing")
             .WithDescription($"Now playing: [{track.Title}]({track.Url}).")
             .WithImageUrl(thumbnailUrl)
-            .WithColor(Color.DarkGreen)
-            .Build());
+            .WithColor(Color.DarkGreen);
 
-        return embed;
+        return embedBuilder.Build();
+    }
+    
+    /// <summary>
+    /// Wyszukiwanie utworu z zapytania
+    /// </summary>
+    /// <param name="query"></param>
+    /// <returns></returns>
+    private async Task<LavaTrack?> SearchSongAsync(string query)
+    {
+        // Szukanie utworu - jeśli zapytanie nie jest poprawnym linkiem to utwór jest wyszukiwany na youtubie
+        var search = Uri.IsWellFormedUriString(query, UriKind.Absolute)
+            ? await _lavaNode.SearchAsync(SearchType.Direct, query)
+            : await _lavaNode.SearchYouTubeAsync(query);
+
+        if (search.Status == SearchStatus.NoMatches)
+        {
+            return null;
+        }
+
+        var track = search.Tracks.FirstOrDefault();
+
+        return track;
     }
     
     /// <summary>
@@ -249,13 +287,13 @@ public class AudioService
             if (currentTrack == null)
             {
                 return await EmbedHandler.CreateBasicEmbed("Music, Skip", 
-                    $"Nothing to skip.", Color.Blue);
+                    "Nothing to skip.", Color.Blue);
             }
             
             return await EmbedHandler.CreateBasicEmbed("Music, Skip", 
                 $"Skipped [{player.Track.Title}]({player.Track.Url}).", Color.Blue);
         }
-
+        
         await player.SkipAsync();
         
         // Zapisywanie utworu (potrzebne do loopowania)
@@ -266,7 +304,7 @@ public class AudioService
         }
 
         return await EmbedHandler.CreateBasicEmbed("Music, Skip", 
-            $"Skipped {currentTrack.Title}.", Color.Blue);
+            $"Skipped [{currentTrack.Title}]({currentTrack.Url}).", Color.Blue);
     }
 
     /// <summary>
@@ -317,6 +355,7 @@ public class AudioService
         }
         
         stateStruct.PerformLoop();
+        stateStruct.KeepConnected();
 
         LavaTrack track;
 
@@ -379,13 +418,15 @@ public class AudioService
                 "Couldn't retrieve the player state for looping");
         }
 
+        stateStruct.LastTrack = player.Track;
+
         // Komenda wywołana z argumentem - loopowanie podaną ilość razy
         if (loopTimes != -1)
         {
             stateStruct.LoopTimes = loopTimes;
             
             return await EmbedHandler.CreateBasicEmbed("Music, Loop",
-                $"Looping [{player.Track?.Title}]({player.Track?.Url})", Color.Blue);
+                $"Looping [{player.Track?.Title}]({player.Track?.Url}) {loopTimes} times.", Color.Blue);
         }
         
         // Wywołanie bez argumentu

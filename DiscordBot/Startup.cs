@@ -59,7 +59,7 @@ public class Startup
         var commandService = new CommandService(new CommandServiceConfig
         {
             LogLevel = LogSeverity.Info,
-            CaseSensitiveCommands = false,
+            CaseSensitiveCommands = false
         });
 
         services.AddSingleton(_client)

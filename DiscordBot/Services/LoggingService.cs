@@ -22,12 +22,13 @@ public class LoggingService
             case LogSeverity.Warning:
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 break;
-            case LogSeverity.Info:
-                Console.ForegroundColor = ConsoleColor.White;
-                break;
             case LogSeverity.Verbose:
             case LogSeverity.Debug:
                 Console.ForegroundColor = ConsoleColor.DarkGray;
+                break;
+            case LogSeverity.Info:
+            default:
+                Console.ForegroundColor = ConsoleColor.White;
                 break;
         }
 
