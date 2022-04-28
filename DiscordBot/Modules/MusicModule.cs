@@ -1,19 +1,19 @@
 ﻿using DiscordBot.Services;
 
 namespace DiscordBot.Modules;
-
+#if false
 public sealed class MusicModule : ModuleBase<SocketCommandContext>
 {
     private readonly AudioService _audioService;
     private readonly SoundEffectsService _sfxService;
 
     public MusicModule(AudioService audioService, SoundEffectsService soundEffectsService)
-    { 
+    {
         _audioService = audioService;
         _sfxService = soundEffectsService;
     }
 
-    [Command("join")]
+    [Command("joinf")]
     [Summary("Joins the voice channel you are in.")]
     public async Task Join()
     {
@@ -21,7 +21,7 @@ public sealed class MusicModule : ModuleBase<SocketCommandContext>
         if (embed != null) await ReplyAsync(embed: embed);
     }
 
-    [Command("leave")]
+    [Command("leavef")]
     [Summary("Leaves the voice channel")]
     public async Task Leave()
     {
@@ -29,7 +29,7 @@ public sealed class MusicModule : ModuleBase<SocketCommandContext>
         if (embed != null) await ReplyAsync(embed: embed);
     }
 
-    [Command("play")]
+    [Command("playf")]
     [Alias("p", "grajcuj", "zapodawaj", "dźwięcz")]
     [Summary("Searches and plays the requested video.")]
     public async Task Play([Remainder] string query)
@@ -38,7 +38,7 @@ public sealed class MusicModule : ModuleBase<SocketCommandContext>
         await ReplyAsync(embed: embed);
     }
     
-    [Command("list")]
+    [Command("listf")]
     [Summary("Lists all the songs in the queue.")]
     public async Task List()
     {
@@ -46,7 +46,7 @@ public sealed class MusicModule : ModuleBase<SocketCommandContext>
         await ReplyAsync(embed: embed);
     }
 
-    [Command("skip")]
+    [Command("skipf")]
     [Summary("Skips the currently playing song.")]
     public async Task Skip()
     {
@@ -54,7 +54,7 @@ public sealed class MusicModule : ModuleBase<SocketCommandContext>
         await ReplyAsync(embed: embed);
     }
 
-    [Command("volume")]
+    [Command("volumef")]
     [Alias("vol")]
     [Summary("Sets the player volume.")]
     public async Task Volume(ushort volume = 100)
@@ -63,7 +63,7 @@ public sealed class MusicModule : ModuleBase<SocketCommandContext>
         await ReplyAsync(message);
     }
 
-    [Command("loop")]
+    [Command("loopf")]
     [Summary("Loops the currently playing song")]
     public async Task Loop(int loopTimes = -1)
     {
@@ -71,7 +71,7 @@ public sealed class MusicModule : ModuleBase<SocketCommandContext>
         await ReplyAsync(embed: embed);
     }
 
-    [Command("effect")]
+    [Command("effectf")]
     [Alias("sfx", "soundeffect")]
     [Summary("Applies sound effect on the player")]
     public async Task Effect([Remainder] string effect)
@@ -80,3 +80,4 @@ public sealed class MusicModule : ModuleBase<SocketCommandContext>
         await ReplyAsync(message);
     }
 }
+#endif

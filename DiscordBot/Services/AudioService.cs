@@ -1,11 +1,24 @@
-﻿namespace DiscordBot.Services;
+﻿using Microsoft.Extensions.Logging;
+
+namespace DiscordBot.Services;
 
 public class AudioService
 {
     private readonly LavaNode _lavaNode;
+    private readonly ILogger _logger;
     private static readonly ConcurrentDictionary<SocketGuild, PlayerStateStruct> PlayerStatesDict = new();
+    private static readonly ConcurrentDictionary<ulong, CancellationTokenSource> _disconectTokens = new();
 
-    public AudioService(LavaNode lavaNode) => _lavaNode = lavaNode;
+    public AudioService(LavaNode lavaNode, LoggerFactory loggerFactory)
+    {
+        _lavaNode = lavaNode;
+        _logger = loggerFactory.CreateLogger<LavaNode>();
+        _lavaNode.OnLog += logMessage =>
+        {
+            _logger.Log((LogLevel) logMessage.Severity, logMessage.Exception, logMessage.Message);
+            return Task.CompletedTask;
+        };
+    } 
 
     /// <summary>
     /// Dołącza do kanału głosowego użytkownika wywołującego komendę.
@@ -89,10 +102,79 @@ public class AudioService
         }
         catch (Exception exception)
         {
-            Console.WriteLine(exception);
             return await EmbedHandler.CreateErrorEmbed("Music, Leave", exception.Message);
         }
     }
+
+    private Task OnTrackStarted(TrackStartEventArgs args)
+    {
+        if (!_disconectTokens.TryGetValue(args.Player.VoiceChannel.Id, out var cancellationToken))
+        {
+            return Task.CompletedTask;
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.CompletedTask;
+        }
+        
+        cancellationToken.Cancel(true);
+        return Task.CompletedTask;
+    }
+
+    private async Task OnTrackEnded(TrackEndedEventArgs args)
+    {
+        if (args.Reason is not (TrackEndReason.Finished or TrackEndReason.LoadFailed))
+        {
+            return;
+        }
+
+        var player = args.Player;
+        if (!player.Queue.TryDequeue(out var queueable))
+        {
+            await player.TextChannel.SendMessageAsync("Queue completed");
+            _ = InitiateDisconnect(player, TimeSpan.FromSeconds(10));
+            return;
+        }
+
+        // if (queueable is not { } track)
+        // {
+        //     await player.TextChannel.SendMessageAsync("Next item in queue is not a track");
+        //     return;
+        // }
+
+        await player.PlayAsync(queueable);
+        var embed = await EmbedHandler.CreateBasicEmbed("Now Playing",
+            $"Now playing: [{queueable.Title}]({queueable.Url})", Color.DarkGreen);
+
+        await args.Player.TextChannel.SendMessageAsync(embed: embed);
+    }
+
+    private async Task InitiateDisconnect(LavaPlayer player, TimeSpan timeSpan)
+    {
+        if (!_disconectTokens.TryGetValue(player.VoiceChannel.Id, out var cancellationToken))
+        {
+            cancellationToken = new CancellationTokenSource();
+            _disconectTokens.TryAdd(player.VoiceChannel.Id, cancellationToken);
+        }
+        
+        else if (cancellationToken.IsCancellationRequested)
+        {
+            _disconectTokens.TryUpdate(player.VoiceChannel.Id, new CancellationTokenSource(), cancellationToken);
+            cancellationToken = _disconectTokens[player.VoiceChannel.Id];
+        }
+
+        await player.TextChannel.SendMessageAsync($"Auto disconnect initiated! Disconnecting in {timeSpan}...");
+        var isCancelled = SpinWait.SpinUntil(() => cancellationToken.IsCancellationRequested, timeSpan);
+        if (isCancelled)
+        {
+            return;
+        }
+
+        await _lavaNode.LeaveAsync(player.VoiceChannel);
+        await player.TextChannel.SendMessageAsync("Invite me again sometime, sugar.");
+    }
+    
     
     /// <summary>
     /// Opuszcza obecny kanał jeśli minęła określona ilość czasu bez interakcji
@@ -267,7 +349,7 @@ public class AudioService
         
         if (voiceState?.VoiceChannel == null)
         {
-            return await EmbedHandler.CreateBasicEmbed("Music, Loop", 
+            return await EmbedHandler.CreateBasicEmbed("Music, Skip", 
                 "You must be connected to a voice channel.", Color.DarkRed);
         }
         

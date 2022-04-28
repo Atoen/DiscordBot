@@ -1,6 +1,7 @@
 ﻿using DiscordBot.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace DiscordBot;
 
@@ -32,7 +33,7 @@ public class Startup
         if (_lavaNode is {IsConnected: false})
         {
             await _lavaNode.ConnectAsync();
-            _lavaNode.OnTrackEnded += AudioService.TrackEnded;
+            // _lavaNode.OnTrackEnded += AudioService.TrackEnded;
         }
     }
 
@@ -56,26 +57,30 @@ public class Startup
 
     private void ConfigureServices(IServiceCollection services)
     {
+        var localhost = true;
+        
         var commandService = new CommandService(new CommandServiceConfig
         {
             LogLevel = LogSeverity.Info,
             CaseSensitiveCommands = false
         });
 
+        var server = localhost ? "localHost" : "lavaServer";
+
         services.AddSingleton(_client)
             .AddSingleton(commandService)
             .AddSingleton<CommandHandler>()
             .AddSingleton<StartupService>()
             .AddSingleton<LoggingService>()
-            .AddSingleton<AudioService>()
+            .AddSingleton<NewAudioService>()
             .AddSingleton<SoundEffectsService>()
             .AddLavaNode(lava =>
             {
-                lava.Hostname = _configuration["lavaServer:host"];
-                lava.Port = ushort.Parse(_configuration["lavaServer:port"]);
-                lava.Authorization = _configuration["lavaServer:password"];
+                lava.Hostname = _configuration[$"{server}:host"];
+                lava.Port = ushort.Parse(_configuration[$"{server}:port"]);
+                lava.Authorization = _configuration[$"{server}:password"];
                 lava.IsSsl = false;
-                lava.SelfDeaf = true;
+                lava.SelfDeaf = bool.Parse(_configuration[$"{server}:ssl"]);
             })
             .AddSingleton(_configuration);
     }
