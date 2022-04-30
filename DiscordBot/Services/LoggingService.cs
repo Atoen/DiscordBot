@@ -1,15 +1,8 @@
 ﻿namespace DiscordBot.Services;
 
-public class LoggingService
+public static class LoggingService
 {
-    public LoggingService(DiscordSocketClient discord, CommandService commands, LavaNode lavaNode)
-    {
-        discord.Log += OnLogAsync;
-        commands.Log += OnLogAsync;
-        lavaNode.OnLog += OnLogAsync;
-    }
-    
-    private static Task OnLogAsync(LogMessage message)
+    public static Task Log(LogMessage message)
     {
         if (message.Source == "Victoria" && message.Severity == LogSeverity.Debug) return Task.CompletedTask;
         
@@ -37,5 +30,17 @@ public class LoggingService
         Console.ResetColor();
         
         return Task.CompletedTask;
+    }
+
+    public static Task LogMessage(string source, string message)
+    {
+        var log = new LogMessage(LogSeverity.Info, source, message);
+        return Log(log);
+    }
+
+    public static Task LogError(string source, string message, Exception exception)
+    {
+        var log = new LogMessage(LogSeverity.Error, source, message, exception);
+        return Log(log);
     }
 }

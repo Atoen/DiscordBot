@@ -16,6 +16,9 @@ public class StartupService
         _commands = commands;
         _config = config;
         _provider = provider;
+
+        _client.Log += LoggingService.Log;
+        _commands.Log += LoggingService.Log;
     }
 
     public async Task StartAsync()

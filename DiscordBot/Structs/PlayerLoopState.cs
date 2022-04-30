@@ -1,6 +1,6 @@
 ﻿namespace DiscordBot.Structs;
 
-public class NewPlayerState
+public class PlayerLoopState
 {
     public bool Looped
     {

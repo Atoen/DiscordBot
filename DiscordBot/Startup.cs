@@ -1,7 +1,6 @@
 ﻿using DiscordBot.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 
 namespace DiscordBot;
 
@@ -30,11 +29,7 @@ public class Startup
 
     private async Task ClientOnReady()
     {
-        if (_lavaNode is {IsConnected: false})
-        {
-            await _lavaNode.ConnectAsync();
-            // _lavaNode.OnTrackEnded += AudioService.TrackEnded;
-        }
+        if (_lavaNode is {IsConnected: false}) await _lavaNode.ConnectAsync();
     }
 
     internal async Task MainAsync()
@@ -44,10 +39,7 @@ public class Startup
         
         var provider = services.BuildServiceProvider();
         
-        // Uruchomienie usług
         provider.GetRequiredService<CommandHandler>();
-        provider.GetRequiredService<LoggingService>();
-
         _lavaNode = provider.GetRequiredService<LavaNode>();
         
         await provider.GetRequiredService<StartupService>().StartAsync();
@@ -57,7 +49,7 @@ public class Startup
 
     private void ConfigureServices(IServiceCollection services)
     {
-        var localhost = true;
+        var localhost = false;
         
         var commandService = new CommandService(new CommandServiceConfig
         {
@@ -71,16 +63,14 @@ public class Startup
             .AddSingleton(commandService)
             .AddSingleton<CommandHandler>()
             .AddSingleton<StartupService>()
-            .AddSingleton<LoggingService>()
-            .AddSingleton<NewAudioService>()
-            .AddSingleton<SoundEffectsService>()
+            .AddSingleton<AudioService>()
             .AddLavaNode(lava =>
             {
                 lava.Hostname = _configuration[$"{server}:host"];
                 lava.Port = ushort.Parse(_configuration[$"{server}:port"]);
                 lava.Authorization = _configuration[$"{server}:password"];
-                lava.IsSsl = false;
-                lava.SelfDeaf = bool.Parse(_configuration[$"{server}:ssl"]);
+                lava.IsSsl = bool.Parse(_configuration[$"{server}:ssl"]);
+                lava.SelfDeaf = true;
             })
             .AddSingleton(_configuration);
     }

@@ -1,83 +1,274 @@
 ﻿using DiscordBot.Services;
 
 namespace DiscordBot.Modules;
-#if false
-public sealed class MusicModule : ModuleBase<SocketCommandContext>
+
+public class MusicModule : ModuleBase<SocketCommandContext>
 {
+    private readonly LavaNode _lavaNode;
     private readonly AudioService _audioService;
-    private readonly SoundEffectsService _sfxService;
-
-    public MusicModule(AudioService audioService, SoundEffectsService soundEffectsService)
-    {
-        _audioService = audioService;
-        _sfxService = soundEffectsService;
-    }
-
-    [Command("joinf")]
-    [Summary("Joins the voice channel you are in.")]
-    public async Task Join()
-    {
-        var embed = await _audioService.JoinAsync(Context);
-        if (embed != null) await ReplyAsync(embed: embed);
-    }
-
-    [Command("leavef")]
-    [Summary("Leaves the voice channel")]
-    public async Task Leave()
-    {
-        var embed = await _audioService.LeaveAsync(Context);
-        if (embed != null) await ReplyAsync(embed: embed);
-    }
-
-    [Command("playf")]
-    [Alias("p", "grajcuj", "zapodawaj", "dźwięcz")]
-    [Summary("Searches and plays the requested video.")]
-    public async Task Play([Remainder] string query)
-    {
-        var embed = await _audioService.PlayAsync(Context, query);
-        await ReplyAsync(embed: embed);
-    }
     
-    [Command("listf")]
-    [Summary("Lists all the songs in the queue.")]
-    public async Task List()
+    public MusicModule(LavaNode lavaNode, AudioService audioService)
     {
-        var embed = await _audioService.ListAsync(Context);
+        _lavaNode = lavaNode;
+        _audioService = audioService;
+    }
+
+    #region Join
+    [Command("join")]
+    public async Task JoinAsync()
+    {
+        var guild = Context.Guild;
+        var voiceState = Context.User as IVoiceState;
+        var textChanel = Context.Channel as ITextChannel;
+        
+        if (_lavaNode.HasPlayer(guild))
+        {
+            var embed = await EmbedHandler.CreateBasicEmbed("Music, Join",
+                "Already connected to a voice channel.", Color.DarkRed);
+            await ReplyAsync(embed: embed);
+            return;
+        }
+        
+        if (voiceState?.VoiceChannel == null)
+        {
+            var embed =  await EmbedHandler.CreateBasicEmbed("Music, Join",
+                "You must be connected to a voice channel.", Color.DarkRed);
+            await ReplyAsync(embed: embed);
+            return;
+        }
+
+        var errorEmbed = await _audioService.JoinAsync(voiceState.VoiceChannel, textChanel!);
+        if (errorEmbed != null) await ReplyAsync(embed: errorEmbed);
+    }
+    #endregion
+
+    #region Leave
+    [Command("leave")]
+    public async Task LeaveAsync()
+    {
+        var guild = Context.Guild;
+        var voiceState = Context.User as IVoiceState;
+
+        if (!_lavaNode.HasPlayer(guild))
+        {
+            var embed = await EmbedHandler.CreateBasicEmbed("Music, Leave",
+                "I'm not in a voice channel.", Color.DarkRed);
+            await ReplyAsync(embed: embed);
+            return;
+        }
+        
+        if (voiceState?.VoiceChannel == null)
+        {
+            var embed =  await EmbedHandler.CreateBasicEmbed("Music, Leave",
+                "You must be connected to a voice channel.", Color.DarkRed);
+            await ReplyAsync(embed: embed);
+            return;
+        }
+
+        var errorEmbed = await _audioService.LeaveAsync(voiceState.VoiceChannel);
+        if (errorEmbed != null) await ReplyAsync(embed: errorEmbed);
+    }
+    #endregion
+
+    #region Play
+    [Command("play"), Alias("p", "grajcuj", "zapodawaj", "dźwięcz")]
+    public async Task PlayAsync([Remainder] string query)
+    {
+        Embed embed;
+        
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            embed = await EmbedHandler.CreateBasicEmbed("Music, Play",
+                "No search terms provided.", Color.DarkRed);
+            await ReplyAsync(embed: embed);
+            return;
+        }
+
+        var guild = Context.Guild;
+        var voiceState = Context.User as IVoiceState;
+
+        if (voiceState?.VoiceChannel == null)
+        {
+            embed =  await EmbedHandler.CreateBasicEmbed("Music, Play",
+                "You must be connected to a voice channel.", Color.DarkRed);
+            await ReplyAsync(embed: embed);
+            return;
+        }
+
+        if (!_lavaNode.HasPlayer(guild))
+        {
+            await JoinAsync();
+        }
+
+        var player = _lavaNode.GetPlayer(guild);
+
+        embed = await _audioService.PlayAsync(player, query);
         await ReplyAsync(embed: embed);
     }
+    #endregion
 
-    [Command("skipf")]
-    [Summary("Skips the currently playing song.")]
-    public async Task Skip()
+    #region List
+    [Command("list")]
+    public async Task ListAsync()
     {
-        var embed = await _audioService.SkipTrackAsync(Context);
+        var guild = Context.Guild;
+        Embed embed;
+        
+        if (!_lavaNode.TryGetPlayer(guild, out var player))
+        {
+            embed = await EmbedHandler.CreateBasicEmbed("Music, List",
+                "I'm not connected to a voice channel.", Color.DarkRed);
+            await ReplyAsync(embed: embed);
+            return;
+        }
+        
+        if (player.PlayerState is not (PlayerState.Playing or PlayerState.Paused))
+        {
+            embed = await EmbedHandler.CreateBasicEmbed("Music Playlist", 
+                "No music is being played right now.", Color.Blue);
+            await ReplyAsync(embed: embed);
+            return;
+        }
+        
+        if (player.Queue.Count < 1 && player.Track != null)
+        {
+            embed = await EmbedHandler.CreateBasicEmbed("Music Playlist", 
+                $"Now playing: [{player.Track.Title}]({player.Track.Url}).", Color.Blue);
+            await ReplyAsync(embed: embed);
+            return;
+        }
+
+        var descriptionBuilder = new StringBuilder();
+        var trackNum = 2;
+        foreach (var track in player.Queue)
+        {
+            descriptionBuilder.Append($"#{trackNum}: [{track.Title}]({track.Url})\n");
+            trackNum++;
+        }
+        
+        embed = await EmbedHandler.CreateBasicEmbed("Music Playlist", 
+            $"Now playing: [{player.Track?.Title}]({player.Track?.Url}) \n{descriptionBuilder}", Color.Blue);
         await ReplyAsync(embed: embed);
     }
+    #endregion
 
-    [Command("volumef")]
-    [Alias("vol")]
-    [Summary("Sets the player volume.")]
-    public async Task Volume(ushort volume = 100)
+    #region Skip
+    [Command("skip")]
+    public async Task SkipTrackAsync()
     {
-        var message = await _audioService.SetVolumeAsync(Context, volume);
-        await ReplyAsync(message);
-    }
+        var guild = Context.Guild;
+        var voiceState = Context.User as IVoiceState;
+        Embed embed;
+        
+        if (!_lavaNode.TryGetPlayer(guild, out var player))
+        {
+            embed = await EmbedHandler.CreateBasicEmbed("Music, Skip",
+                "I'm not connected to a voice channel.", Color.DarkRed);
+            await ReplyAsync(embed: embed);
+            return;
+        }
+        
+        if (voiceState?.VoiceChannel == null)
+        {
+            embed =  await EmbedHandler.CreateBasicEmbed("Music, Skip",
+                "You must be connected to a voice channel.", Color.DarkRed);
+            await ReplyAsync(embed: embed);
+            return;
+        }
 
-    [Command("loopf")]
-    [Summary("Loops the currently playing song")]
-    public async Task Loop(int loopTimes = -1)
-    {
-        var embed = await _audioService.LoopAsync(Context, loopTimes);
+        embed = await _audioService.SkipAsync(player);
         await ReplyAsync(embed: embed);
     }
+    #endregion
 
-    [Command("effectf")]
-    [Alias("sfx", "soundeffect")]
-    [Summary("Applies sound effect on the player")]
-    public async Task Effect([Remainder] string effect)
+    #region Volume
+    [Command("volume"), Alias("vol")]
+    public async Task SetVolumeAsync(ushort volume = 100)
     {
-        var message = await _sfxService.ApplySoundEffectAsync(Context, effect);
-        await ReplyAsync(message);
+        if (volume is > 150 or <= 0)
+        {
+            await ReplyAsync("Volume must be between 1 and 150.");
+            return;
+        }
+
+        var guild = Context.Guild;
+        var voiceState = Context.User as IVoiceState;
+
+        if (!_lavaNode.TryGetPlayer(guild, out var player))
+        {
+            await ReplyAsync("I'm not connected to a voice channel.");
+            return;
+        }
+        
+        if (voiceState?.VoiceChannel == null)
+        {
+            await ReplyAsync("You must be connected to a voice channel");
+            return;
+        }
+        
+        await player.UpdateVolumeAsync(volume);
+        await ReplyAsync($"Volume set to {volume}%.");
     }
+    #endregion
+
+    #region Loop
+    [Command("loop")]
+    public async Task LoopAsync(int loopTimes = -1)
+    {
+        var guild = Context.Guild;
+        var voiceState = Context.User as IVoiceState;
+        Embed embed;
+        
+        if (!_lavaNode.TryGetPlayer(guild, out var player))
+        {
+            embed = await EmbedHandler.CreateBasicEmbed("Music, Loop",
+                "I'm not connected to a voice channel.", Color.DarkRed);
+            await ReplyAsync(embed: embed);
+            return;
+        }
+        
+        if (voiceState?.VoiceChannel == null)
+        {
+            embed =  await EmbedHandler.CreateBasicEmbed("Music, Loop",
+                "You must be connected to a voice channel.", Color.DarkRed);
+            await ReplyAsync(embed: embed);
+            return;
+        }
+        
+        if (player.Track == null)
+        {
+            embed = await EmbedHandler.CreateBasicEmbed("Music, Loop", 
+                "Nothing is being played right now.", Color.Blue);
+            await ReplyAsync(embed: embed);
+            return;
+        }
+
+        embed = await _audioService.LoopAsync(player, loopTimes);
+        await ReplyAsync(embed: embed);
+    }
+    #endregion
+
+    #region Effect
+
+    [Command("effect"), Alias("sfx, soundeffect")]
+    public async Task ApplyEffectAsync(string effect)
+    {
+        var guild = Context.Guild;
+        var voiceState = Context.User as IVoiceState;
+
+        if (!_lavaNode.TryGetPlayer(guild, out var player))
+        {
+            await ReplyAsync("I'm not connected to a voice channel.");
+            return;
+        }
+        
+        if (voiceState?.VoiceChannel == null)
+        {
+            await ReplyAsync("You must be connected to a voice channel");
+            return;
+        }
+
+        var reply = _audioService.ApplySoundEffectAsync(player, effect);
+    }
+    #endregion
 }
-#endif

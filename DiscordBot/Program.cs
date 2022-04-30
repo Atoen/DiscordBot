@@ -1,5 +1,4 @@
 ﻿namespace DiscordBot;
-
 public static class Program
 {
     public static Task Main()
@@ -8,3 +7,4 @@ public static class Program
         return new Startup().MainAsync();
     }
 }
+
