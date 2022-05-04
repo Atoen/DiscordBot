@@ -4,7 +4,7 @@ namespace DiscordBot.Services;
 
 public class AudioService
 {
-    private readonly TimeSpan _idleTimeout = TimeSpan.FromMinutes(10);
+    private readonly TimeSpan _idleTimeout = TimeSpan.FromSeconds(1);
 
     private readonly LavaNode _lavaNode;
     private readonly ConcurrentDictionary<ulong, CancellationTokenSource> _disconnectTokens = new();
@@ -43,7 +43,7 @@ public class AudioService
         try
         {
             await _lavaNode.LeaveAsync(voiceChannel);
-            _playerStates.TryRemove(voiceChannel.GuildId, out var _);
+            _playerStates.TryRemove(voiceChannel.GuildId, out _);
 
             await LoggingService.LogMessage("LavaPlayer", $"Left {voiceChannel}");
 
@@ -233,18 +233,15 @@ public class AudioService
         
         await LoggingService.LogMessage("Audio Service", $"Initiated disconnect from {player.VoiceChannel}: {timeSpan}");
 
-        // Potrzebne
-        await player.TextChannel.SendMessageAsync();
-
         var isCancelled = Task.Run(async delegate
         {
-            await Task.Delay(timeSpan, cancellationTokenSource.Token);
+            await Task.Delay(timeSpan);
             return cancellationTokenSource.IsCancellationRequested;
         });
-
+        
         if (isCancelled.Result) return;
-
-        await LeaveAsync(player.VoiceChannel);
+        
+        await _lavaNode.LeaveAsync(player.VoiceChannel);
         _playerStates.TryRemove(player.VoiceChannel.GuildId, out _);
     }
     

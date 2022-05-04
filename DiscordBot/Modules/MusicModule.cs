@@ -2,6 +2,7 @@
 
 namespace DiscordBot.Modules;
 
+[Name("Music")]
 public class MusicModule : ModuleBase<SocketCommandContext>
 {
     private readonly LavaNode _lavaNode;

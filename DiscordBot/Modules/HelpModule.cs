@@ -3,7 +3,6 @@
 namespace DiscordBot.Modules;
 
 [Name("Helping")]
-[Summary("Helpful commands")]
 public class HelpModule : ModuleBase<SocketCommandContext>
 {
     private readonly CommandService _service;
@@ -37,11 +36,11 @@ public class HelpModule : ModuleBase<SocketCommandContext>
 
             if (!string.IsNullOrWhiteSpace(description))
             {
-                builder.AddField(x =>
+                builder.AddField(fieldBuilder =>
                 {
-                    x.Name = module.Name;
-                    x.Value = description;
-                    x.IsInline = false;
+                    fieldBuilder.Name = module.Name;
+                    fieldBuilder.Value = description;
+                    fieldBuilder.IsInline = false;
                 });
             }
         }

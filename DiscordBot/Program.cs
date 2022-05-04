@@ -7,4 +7,3 @@ public static class Program
         return new Startup().MainAsync();
     }
 }
-
