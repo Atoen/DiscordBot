@@ -269,7 +269,8 @@ public class MusicModule : ModuleBase<SocketCommandContext>
             return;
         }
 
-        var reply = _audioService.ApplySoundEffectAsync(player, effect);
+        var reply = await _audioService.ApplySoundEffectAsync(player, effect);
+        await ReplyAsync(reply);
     }
     #endregion
 }

@@ -4,10 +4,7 @@ namespace DiscordBot.Services;
 
 public class AudioService
 {
-    private readonly TimeSpan _idleTimeout = TimeSpan.FromSeconds(1);
-
     private readonly LavaNode _lavaNode;
-    private readonly ConcurrentDictionary<ulong, CancellationTokenSource> _disconnectTokens = new();
     private readonly ConcurrentDictionary<ulong, PlayerLoopState> _playerStates = new();
 
     public AudioService(LavaNode lavaNode)
@@ -25,8 +22,12 @@ public class AudioService
         try
         {
             await _lavaNode.JoinAsync(voiceChannel, textChannel);
-            _playerStates.TryAdd(voiceChannel.GuildId, new PlayerLoopState());
-            _ = InitiateDisconnectAsync(_lavaNode.GetPlayer(voiceChannel.Guild), _idleTimeout);
+
+            var playerState = new PlayerLoopState();
+            playerState.TimedOut += async delegate { await LeaveAsync(voiceChannel); };
+            playerState.StartIdleTimer();
+
+            _playerStates.TryAdd(voiceChannel.GuildId, playerState);
 
             await LoggingService.LogMessage("LavaPlayer", $"Joined {voiceChannel} - {voiceChannel.Guild}");
             return null;
@@ -43,7 +44,12 @@ public class AudioService
         try
         {
             await _lavaNode.LeaveAsync(voiceChannel);
-            _playerStates.TryRemove(voiceChannel.GuildId, out _);
+
+            // Usuwanie player state z dictionary (usuwanie timera)
+            if (_playerStates.TryRemove(voiceChannel.GuildId, out var state))
+            {
+                state.Dispose();
+            }
 
             await LoggingService.LogMessage("LavaPlayer", $"Left {voiceChannel}");
 
@@ -63,7 +69,7 @@ public class AudioService
 
         var embedBuilder = new EmbedBuilder();
 
-        // Utworzenie link do miniaturki filmiku (w średniej jakości)
+        // Utworzenie linku do miniaturki filmiku (w średniej jakości)
         var videoId = track.Url.Split("watch?v=")[1].Split("&")[0];
         var thumbnailUrl = $"https://img.youtube.com/vi/{videoId}/mqdefault.jpg";
 
@@ -107,7 +113,7 @@ public class AudioService
             : await _lavaNode.SearchYouTubeAsync(query);
 
         if (search.Status == SearchStatus.NoMatches) return null;
-        
+
         var track = search.Tracks.FirstOrDefault();
         return track;
     }
@@ -121,16 +127,23 @@ public class AudioService
                 "Nothing to skip.", Color.Blue);
         }
 
-        await LoggingService.LogMessage("LavaPlayer", $"Skipped {currentTrack.Title}");
+        await LoggingService.LogMusicMessage("LavaPlayer", $"Skipped {currentTrack.Title}");
+
+        if (!_playerStates.TryGetValue(player.VoiceChannel.GuildId, out var playerState))
+        {
+            return await EmbedHandler.CreateErrorEmbed("Music, Skip", "Couldn't retrieve the player state");
+        }
+        
 
         if (player.Queue.Count < 1)
         {
             await player.StopAsync();
-            _ = InitiateDisconnectAsync(_lavaNode.GetPlayer(player.VoiceChannel.Guild), _idleTimeout);
+            playerState.StartIdleTimer();
         }
         else
         {
             await player.SkipAsync();
+            playerState.Looped = false;
         }
 
         return await EmbedHandler.CreateBasicEmbed("Music, Skip",
@@ -171,14 +184,12 @@ public class AudioService
 
     private async Task OnTrackStarted(TrackStartEventArgs arg)
     {
-        await LoggingService.LogMessage("LavaPlayer",
+        await LoggingService.LogMusicMessage("LavaPlayer",
             $"Now playing: {arg.Track.Title} in {arg.Player.VoiceChannel}");
 
-        if (!_disconnectTokens.TryGetValue(arg.Player.VoiceChannel.Id, out var cancellationTokenSource)) return;
+        if (!_playerStates.TryGetValue(arg.Player.VoiceChannel.GuildId, out var playerState)) return;
 
-        if (cancellationTokenSource.IsCancellationRequested) return;
-
-        cancellationTokenSource.Cancel(true);
+        playerState.StopIdleTimer();
     }
 
     private async Task OnTrackEnded(TrackEndedEventArgs args)
@@ -197,7 +208,7 @@ public class AudioService
         {
             if (!args.Player.Queue.TryDequeue(out var queueable))
             {
-                _ = InitiateDisconnectAsync(args.Player, _idleTimeout);
+                playerState.StartIdleTimer();
                 return;
             }
 
@@ -218,33 +229,6 @@ public class AudioService
         await args.Player.PlayAsync(track);
     }
 
-    private async Task InitiateDisconnectAsync(LavaPlayer player, TimeSpan timeSpan)
-    {
-        if (!_disconnectTokens.TryGetValue(player.VoiceChannel.Id, out var cancellationTokenSource))
-        {
-            cancellationTokenSource = new CancellationTokenSource();
-            _disconnectTokens.TryAdd(player.VoiceChannel.Id, cancellationTokenSource);
-        }
-        else if (cancellationTokenSource.IsCancellationRequested)
-        {
-            _disconnectTokens.TryUpdate(player.VoiceChannel.Id, new CancellationTokenSource(), cancellationTokenSource);
-            cancellationTokenSource = _disconnectTokens[player.VoiceChannel.Id];
-        }
-        
-        await LoggingService.LogMessage("Audio Service", $"Initiated disconnect from {player.VoiceChannel}: {timeSpan}");
-
-        var isCancelled = Task.Run(async delegate
-        {
-            await Task.Delay(timeSpan);
-            return cancellationTokenSource.IsCancellationRequested;
-        });
-        
-        if (isCancelled.Result) return;
-        
-        await _lavaNode.LeaveAsync(player.VoiceChannel);
-        _playerStates.TryRemove(player.VoiceChannel.GuildId, out _);
-    }
-    
     public async Task<string> ApplySoundEffectAsync(LavaPlayer player, string effect)
     {
         if (player.Track == null)
@@ -254,7 +238,7 @@ public class AudioService
 
         IFilter filter;
         var returnMessage = "Applied effect.";
-            
+
         switch (effect.ToLower())
         {
             case "rotation":
@@ -262,18 +246,18 @@ public class AudioService
             case "8d":
                 filter = new RotationFilter {Hertz = 0.2};
                 break;
-            
+
             case "karaoke":
                 filter = new KarokeFilter();
                 break;
-            
+
             case "reset":
             case "default":
             case "off":
                 filter = new ChannelMixFilter();
                 returnMessage = "Disabled effects";
                 break;
-            
+
             case "oro":
             case "9d":
                 filter = new DistortionFilter
@@ -282,8 +266,9 @@ public class AudioService
                     TanScale = 7
                 };
                 break;
-            
+
             case "mono":
+            case "1d":
                 filter = new ChannelMixFilter
                     {LeftToLeft = 0.5, LeftToRight = 0.5, RightToLeft = 0.5, RightToRight = 0.5};
                 break;
@@ -291,9 +276,9 @@ public class AudioService
             default:
                 return "Effect not found";
         }
-        
+
         await player.ApplyFilterAsync(filter);
-        
+
         return returnMessage;
     }
 }

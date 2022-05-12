@@ -38,6 +38,15 @@ public static class LoggingService
         return Log(log);
     }
 
+    public static Task LogMusicMessage(string source, string message)
+    {
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine($"{DateTime.Now,-19} [{"Music",8}] {source}: {message}");
+        Console.ResetColor();
+        
+        return Task.CompletedTask;
+    }
+
     public static Task LogError(string source, string message, Exception exception)
     {
         var log = new LogMessage(LogSeverity.Error, source, message, exception);

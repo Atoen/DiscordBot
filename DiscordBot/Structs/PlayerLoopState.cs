@@ -1,4 +1,7 @@
-﻿namespace DiscordBot.Structs;
+﻿using DiscordBot.Services;
+using Timer = System.Timers.Timer;
+
+namespace DiscordBot.Structs;
 
 public class PlayerLoopState
 {
@@ -10,6 +13,32 @@ public class PlayerLoopState
     public int LoopTimes { get; set; }
     public LavaTrack? LastTrack { get; set; }
 
+    public event EventHandler? TimedOut;
+    
+    private static readonly TimeSpan IdleTime = TimeSpan.FromSeconds(5);
+    private readonly Timer _timer;
+
+    public PlayerLoopState()
+    {
+        _timer = new Timer(IdleTime.TotalMilliseconds);
+        _timer.Elapsed += (_, args) => TimedOut?.Invoke(this, args);
+    }
+
+    public void StartIdleTimer()
+    {
+        _timer.Start();
+    }
+
+    public void StopIdleTimer()
+    {
+        _timer.Stop();
+    }
+
+    public void Dispose()
+    {
+        _timer.Dispose();
+    }
+    
     public void PerformLoop()
     {
         if (LoopTimes > 0)
