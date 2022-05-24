@@ -21,7 +21,8 @@ public class Startup
         _client = new DiscordSocketClient(new DiscordSocketConfig
         {
             LogLevel = LogSeverity.Info,
-            MessageCacheSize = 100
+            MessageCacheSize = 100,
+            LogGatewayIntentWarnings = false
         });
 
         _client.Ready += ClientOnReady;
@@ -49,7 +50,7 @@ public class Startup
 
     private void ConfigureServices(IServiceCollection services)
     {
-        var localhost = false;
+        const bool localhost = false;
         
         var commandService = new CommandService(new CommandServiceConfig
         {
@@ -57,7 +58,7 @@ public class Startup
             CaseSensitiveCommands = false
         });
 
-        var server = localhost ? "localHost" : "lavaServer";
+        const string server = localhost ? "localHost" : "lavaServer";
 
         services.AddSingleton(_client)
             .AddSingleton(commandService)

@@ -263,7 +263,7 @@ public class AudioService
                 filter = new DistortionFilter
                 {
                     Offset = 2, Scale = 4, CosOffset = 5, CosScale = 10, SinOffset = 2, SinScale = 4, TanOffset = 2,
-                    TanScale = 7
+                    TanScale = 1
                 };
                 break;
 

@@ -108,6 +108,61 @@ public class MusicModule : ModuleBase<SocketCommandContext>
     }
     #endregion
 
+    #region Undo
+
+    [Command("undo"), Alias("u")]
+    public async Task UndoAsync()
+    {
+        var guild = Context.Guild;
+        var voiceState = Context.User as IVoiceState;
+
+        var embedBuilder = new EmbedBuilder();
+        embedBuilder.WithTitle("Music, Undo");
+        
+        if (!_lavaNode.HasPlayer(guild))
+        {
+            embedBuilder.WithDescription("I'm not connected to a voice channel.");
+            embedBuilder.WithColor(Color.DarkRed);
+            
+            await ReplyAsync(embed: embedBuilder.Build());
+            return;
+        }
+        
+        if (voiceState?.VoiceChannel == null)
+        {
+            embedBuilder.WithDescription("You must be connected to a voice channel.");
+            embedBuilder.WithColor(Color.DarkRed);
+            
+            await ReplyAsync(embed: embedBuilder.Build());
+            return;
+        }
+
+        var player = _lavaNode.GetPlayer(guild);
+
+        if (player.Queue.Count < 1)
+        {
+            embedBuilder.WithDescription("Nothing to undo.");
+            embedBuilder.WithColor(Color.Blue);
+            
+            await ReplyAsync(embed: embedBuilder.Build());
+            return;
+        }
+
+        if (!player.Queue.TryDequeue(out var track))
+        {
+            var errorEmbed = await EmbedHandler.CreateErrorEmbed("Music, Undo", "couldn't dequeue song.");
+            await ReplyAsync(embed: errorEmbed);
+        }
+
+        await LoggingService.LogMusicMessage("LavaPlayer", "Dequeued [{track.Title}]({track.Url})");
+
+        embedBuilder.WithDescription($"Dequeued [{track.Title}]({track.Url})");
+        embedBuilder.WithColor(Color.Blue);
+
+        await ReplyAsync(embed: embedBuilder.Build());
+    }
+    #endregion
+
     #region List
     [Command("list")]
     public async Task ListAsync()

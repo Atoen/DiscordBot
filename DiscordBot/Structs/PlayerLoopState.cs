@@ -15,7 +15,7 @@ public class PlayerLoopState
 
     public event EventHandler? TimedOut;
     
-    private static readonly TimeSpan IdleTime = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan IdleTime = TimeSpan.FromMinutes(10);
     private readonly Timer _timer;
 
     public PlayerLoopState()
